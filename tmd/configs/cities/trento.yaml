@@ -1,0 +1,191 @@
+city: trento
+db_name: "0p3nM0v3"
+
+collections:
+  gps:    mobility_data_positions_expo_openmove
+  imu:    mobility_data_accelaration_and_gyroscope_openmove
+  labels: motion_tag_labeled_data_openmove  # da verificare quando motiontag attivo
+
+classes:
+  - Still
+  - Walk
+  - Bike
+  - Car
+  - Bus
+  - Train
+
+label_map:
+  walk:    Walk
+  car:     Car
+  bicycle: Bike
+  bus:     Bus
+  train:   Train
+
+bounds:
+  lat: [45.35, 47.10]
+  lon: [10.50, 12.10]
+
+timestamp_epoch_range:
+  min_ms: 1577836800000  # 2020-01-01
+  max_ms: 1893456000000  # 2030-01-01
+
+session:
+  gap_s:          300
+  min_duration_s:  60
+
+quality:
+  gps_accuracy_max_m: 50
+  imu_expected_hz:    50
+  imu_hz_tolerance:    0.5
+  min_imu_gps_overlap: 0.5
+  gap_thresh_s:        30    # > max ISI OS throttle (15.2s)
+  # exclude_users RITIRATO (2 Giu 2026). La blocklist a mano (edce9089, babdc54c)
+  # era incoerente: il GPS-fail è strutturale PER-SESSIONE (copertura bimodale,
+  # firma Android), diffuso su 20/46 utenti — di cui 12 MISTI (sessioni buone +
+  # rotte, incl. un utente A22). Una lista di utenti è la granularità sbagliata.
+  # Trattamento corretto: training include tutti + reporting stratificato per
+  # disponibilità GPS (gps_frac>0.5) — vedi thesis/results.md §GPS-stratified.
+  exclude_users: []
+  # Segmenti con chip speed bloccata a zero su molti punti (GPS freeze device bug)
+  gps_freeze_speed_p95_max: 0.05  # m/s
+  gps_freeze_min_n_gps:     100
+
+# ── Labeling Functions ────────────────────────────────────────────────────────
+# Soglie per le LF in tmd/labeling/labeling_functions.py.
+# Calibrate su Trento (Maggio 2026) — valori da segment_labeler.py.
+# Per override su altra città, copia il file e modifica solo le chiavi necessarie.
+lf_thresholds:
+  still_max_radius_m:      80     # m — raggio massimo dal centroide
+  still_max_straight_dist: 150    # m — mantenuto per backward compat parquet senza max_radius_m
+  still_speed_max:          0.5   # m/s — velocity guard: raggio piccolo ma in movimento → ABSTAIN
+  still_p75_max:            1.0   # m/s — velocity guard p75
+
+  walk_speed_max:          1.8
+  walk_p95_max:           15.0
+  walk_bus_guard_dist:     80
+  walk_bus_guard_stopr:    0.25
+  walk_min_gps:             5
+  walk_max_straight_speed:  2.0
+  walk_bus_path_eff_min:   0.50   # override bus guard: esclude Still (p75=0.33) e ~25% Walk borderline
+  walk_bus_bearing_min:   15.0   # override bus guard: esclude Car (median=5.7°), non esclude Walk (33.2°)
+
+  train_rail_max:          120
+  train_speed_p75_min:     12.0
+  train_speed_med_min:      5.0
+  train_motorway_min:      150
+  train_require_anchor:    true
+  train_min_straight_dist: 300
+  train_min_dist_dur_s:     60
+
+  bus_dist_max:            100
+  bus_stop_rate_min:       0.08
+  bus_speed_min:            2.0
+  bus_speed_max:           15.0
+  bus_min_straight_dist:   150
+  bus_min_dist_dur_s:       60
+
+  car_speed_min:            3.5
+  car_dist_bus_min:        80.0   # m — abbassato da 120: Trento densa, strade vicino a fermate
+  car_dist_rail_min:      250.0   # m — abbassato da 300: compromesso (evita bus veloci extraurbani)
+  car_min_straight_dist:   100
+  car_min_dist_dur_s:       60
+
+  min_segment_dur_s:       120
+  max_infra_dist_m:      50000
+
+# ── Window Labeler Universal (tmd/labeling/window_labeler.label_windows_universal) ──
+# Usato da:
+#   - assign_silver_labels.py (hybrid): fill GPS-absent dopo il segment labeler
+#   - assign_silver_labels.py (window): labeler standalone su tutte le finestre
+#   - eval_transfer.py (--rule-based / --with-rule-based): valutazione rule-based
+#
+# Filosofia: alta precisione > copertura. ABSTAIN sui casi ambigui.
+# Feature primarie (GPS, universali): B_speed_mean, B_speed_max, B_stop_frac
+# Feature secondarie (infrastruttura, opzionali): C_osm_rail_prop, C_bus_stops_prop
+# Feature terziarie (IMU, solo GPS-absent): A_lin_mag_mean
+# NON usa: sess_spd_max, A_acc_d2v_mean (dataset-specifici, non trasferibili)
+#
+# Precisione misurata Trento (Maggio 2026):
+#   Still=94.7%  Walk=89.0%  Car=89.5%  Bus=74.6%  Train=75.0%
+# Precisione misurata SHL validate (Maggio 2026):
+#   Still=90.0%  Walk=98.2%  Car=91.4%  Bus=68.2%  Train=100.0%
+window_labeler:
+  # STILL — GPS present: lento + quasi fermo
+  still_spd_strict:   0.20   # m/s — unambiguously still (sotto noise floor GPS urbano ~0.1-0.3 m/s)
+  still_spd_max:      0.50   # m/s — con conferma stop_frac (0.5 m/s = limite inferiore cammino)
+  still_stop_min:     0.85   # B_stop_frac minimo per confermare quiete con speed 0.2-0.5
+  # STILL — GPS absent: solo IMU, soglia al noise floor del sensore
+  # Motivazione FISICA: lin_mag di device fermo = rumore MEMS post-rimozione gravità
+  # (~0.01-0.02 m/s² su IMU smartphone). 0.015 = noise floor hardware, non dataset.
+  # Corroborato (non calibrato): Train lin_mag p25≈0.017 sta sopra la soglia.
+  still_lin_nogps:    0.015  # A_lin_mag_mean (GPS-absent, noise floor MEMS)
+
+  # WALK — solo GPS-present
+  # Discriminatore chiave: B_speed_max < ceiling locomozione umana
+  # Motivazione FISICA (Bohannon 1997): walk max ~2.5 m/s, corsa ricreativa 2.5-4 m/s;
+  # nessun pedone sostiene >5 m/s di picco su 120s, nessun veicolo resta <5 m/s (Bus p10=7.8)
+  walk_spd_lo:        0.50   # m/s — minimo cammino (separa da Still con drift GPS)
+  walk_spd_hi:        2.50   # m/s — massimo cammino comodo (Bohannon 1997)
+  walk_max_spd:       5.00   # m/s — picco: ceiling locomozione umana (dataset-independent)
+  walk_stop_max:      0.50   # B_stop_frac — midpoint neutro (tragitto a piedi: maggioranza in moto)
+  # WALK GPS-absent: IMU + PSD (2-4 Hz), soglie strette per mantenere alta precisione
+  # lin>0.35 + psd>0.25 → precision 89.3%, 298 Walk GPS-absent su Trento (recall 53%)
+  # walk_nogps DISABILITATO (30 Mag): labeling 100%-fisico. Le soglie gait-band
+  # 0.35/0.25 erano calibrate su precision Trento → unico residuo di label-tuning.
+  # Il Walk GPS-absent (2.9% silver) va in ABSTAIN: costo ~-0.01, recuperato dai dati
+  # accumulati nel tempo. La banda PSD 2-4 Hz resta fisica se si vuole riattivarlo.
+  walk_nogps_lin_min: 999    # disabilitato (era 0.35, Trento-tuned)
+  walk_nogps_psd_min: 999    # disabilitato (era 0.25, Trento-tuned)
+  walk_nogps_weight:  0.89   # inutilizzato quando walk_nogps è off
+
+  # TRAIN — richiede copertura binario OSM + velocità
+  # ABSTAIN senza spatial index (rail_prop=0) — corretto per silver labels
+  # Motivazione: confidenza map-matching dato GPS urbano ~5-15m + buffer rotaie
+  # (Stenneth 2011, Sadeghian 2021). Corroborato: Train rail_prop p25≈0.38-0.43.
+  train_rail_min:     0.35   # C_osm_rail_prop (confidenza map-matching)
+  train_spd_min:      8.00   # m/s (29 km/h) — treno in transito minimo
+
+  # BUS — richiede infrastruttura fermata + pattern stop-and-go
+  # ABSTAIN senza spatial index — ambiguità Bus/Car irrisolvibile senza posizione fermate
+  bus_prop_min:       0.20   # C_bus_stops_prop — soglia minima presenza fermate
+  bus_spd_lo:         1.50   # m/s — bus in movimento
+  bus_spd_hi:        14.00   # m/s — esclude autobus intercity veloci (confusione con Car)
+  bus_stop_min:       0.10   # B_stop_frac — stop-and-go minimo
+
+  # CAR — veicolo veloce non su binario, traiettoria efficiente
+  car_spd_lo:         5.00   # m/s (18 km/h) — chiaramente motorizzato
+  car_rail_max:       0.15   # C_osm_rail_prop — non su ferrovia (Train p25=0.38 >> 0.15)
+  car_path_min:       0.40   # B_path_efficiency — si muove in una direzione
+
+# ── Sample-weight RIMOSSI (12 giu 2026) ──────────────────────────────────────
+# I pesi per-classe (window_labeler_weights, lf_accuracy) erano una stima di
+# affidabilità precedente, NON corrispondente alla precision reale del freeze
+# (Car/Bus divergevano) e comunque INERTI nel training (ablation Δmacro-F1 0.0004,
+# results.md §Ablation sample-weight). Rimossi: tutte le finestre silver contano
+# uguale. lf_accuracy era inoltre codice morto (mai letto dal training tmd2).
+
+# ── Post-processing (predictor.py) ────────────────────────────────────────────
+post_processing:
+  smooth_min: 10   # minuti — finestra majority vote (es. 120s→5 win, 60s→10 win)
+
+  # Durata minima per classe in MINUTI — indipendente dalla lunghezza finestra.
+  # predictor.py converte automaticamente in numero di finestre dato win_s.
+  min_segment_min:
+    Train:  10
+    Bus:     8
+    Bike:    4
+    Car:     2
+    Walk:    2
+    Still:   0
+
+  # Bounds fisici di velocità media (m/s) per classe.
+  # Usati dal plausibility filter per correggere predizioni impossibili.
+  speed_bounds:
+    Still:  [null, 0.8]
+    Walk:   [0.2,  3.5]
+    Run:    [1.5,  7.0]
+    Bike:   [1.5, 14.0]
+    Bus:    [null, 30.0]
+    Car:    [null, 55.0]
+    Train:  [2.0,  null]
+    Subway: [2.0,  null]
