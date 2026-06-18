@@ -1,0 +1,15 @@
+# Exact versions of the validated environment (Python 3.11).
+# Runtime:
+pandas==3.0.2
+numpy==2.4.4
+scikit-learn==1.8.0
+pyarrow==23.0.1
+scipy==1.17.1
+PyYAML==6.0.3
+pymongo==4.16.0
+# Research extras (optional, used under research/):
+matplotlib==3.10.8
+seaborn==0.13.2
+cleanlab==2.9.0
+xgboost==3.2.0
+lightgbm==4.6.0
