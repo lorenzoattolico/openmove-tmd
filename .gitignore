@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Data and secrets are never committed (also the local data symlink).
+/data
+.env
+
+# Local working notes, not part of the deliverable.
+_internal/
+
+# Trained models are gitignored, except the shipped deployable in models/.
+*.pkl
+!models/*.pkl
+
+# Generated figures: keep the dir, ignore the output.
+research/figures/*
+!research/figures/.gitkeep
