@@ -5,7 +5,8 @@ Master's thesis (Lorenzo Attolico, University of Trento) and the deployment code
 
 The system reads raw GPS and inertial signals, cuts them into 120-second windows, labels each window
 with a physically grounded rule set (no hand annotation), trains a model on those weak labels, and
-reports transportation modes — down to the corrected modal split and a CO2 estimate.
+reports transportation modes — Still, Walk, Car, Bus, Train — down to the corrected modal split and a
+CO2 estimate. How it works is documented in `docs/`.
 
 ## Repository map
 
@@ -24,28 +25,70 @@ reports transportation modes — down to the corrected modal split and a CO2 est
 | `research/` | the experiments behind the thesis (60 scripts: EDA `e1`–`e29`, RQs `rq1`–`rq6`, helpers) |
 | `production/` | the deployment guide (`DEPLOY.md`, `DEPLOY.it.md`) |
 | `models/` | the deployable Trento model, shipped so the repo is self-contained |
-| `docs/` | architecture, methodology, results |
+| `docs/` | usage, architecture, methodology, results |
 | `tests/` | a small suite (aggregate, labeler, an inertness regression) |
 
-## Install
+## Requirements
 
-    pip install .
+- Python 3.11 or newer (a virtual environment, conda or venv, is recommended).
+- Runtime dependencies (pandas, numpy, scikit-learn, pyarrow, scipy, pyyaml, pymongo) install
+  automatically; the exact versions used for the thesis are pinned in `requirements.lock`.
+- Data are **not** included (user mobility, kept private): the pipeline runs on a local snapshot, or
+  reads from MongoDB via `tmd ingest`.
+
+## Installation
+
+    pip install .              # installs the `tmd` command and its dependencies, from this folder
     tmd --help
 
-The `tmd` command exposes the pipeline as operations, not variants:
-`ingest`, `build-index`, `process`, `build-model`, `predict`, `aggregate`, `run`.
+`pip install .` reads `pyproject.toml` (the project manifest) and installs *this* project. For the
+research scripts (plotting, extra classifiers), add the optional set; for the exact pinned versions,
+use the lock file:
 
-## Use
+    pip install ".[research]"
+    pip install -r requirements.lock
 
-Data are not included (user mobility, kept private); the pipeline runs on a local snapshot.
+## Quickstart (Trento)
 
-- **Run on Trento now:** the trained model is in `models/` — `tmd predict` then `tmd aggregate`.
-- **A new city:** `tmd build-index -> ingest -> build-model` re-runs the protocol on local public maps.
+The trained Trento model ships in `models/`, so you can classify without training:
 
-See `production/DEPLOY.md` to deploy, `research/README.md` to reproduce the thesis.
+    tmd predict   --model models/trento_20260612_202641.pkl --features data/v2/features_trento.parquet
+    tmd aggregate
+
+`predict` writes per-window modes; `aggregate` turns them into the modal split and CO2 estimate.
+
+## Commands
+
+`tmd <command>` — each is one operation, not a variant:
+
+| Command | What it does |
+|---------|--------------|
+| `tmd ingest` | pull new raw data from MongoDB (incremental) |
+| `tmd build-index` | build the GTFS/OSM spatial index for a city |
+| `tmd process` | raw -> windows + features |
+| `tmd build-model` | silver labeling + training (the frozen recipe) |
+| `tmd predict` | features -> predicted modes |
+| `tmd aggregate` | predictions -> modal split + CO2 |
+| `tmd run` | process -> predict -> aggregate, chained |
+
+Full arguments, examples, and where each step writes its output are in **`docs/usage.md`**.
+
+## Reproducing the thesis
+
+The `research/` scripts each regenerate one figure or number (see `research/README.md`). They read the
+frozen snapshot and run from the repo root, e.g. `python research/e1_gps_raw.py`.
+
+## Deploying
+
+`production/DEPLOY.md` (and `DEPLOY.it.md`) describe the two deployment paths and a container skeleton.
 
 ## Documentation
 
+- `docs/usage.md` — every command, its arguments, examples, and where output lands.
 - `docs/architecture.md` — how the pipeline is built, stage by stage.
 - `docs/methodology.md` — the label-free method, leakage control, and how it is evaluated.
-- `docs/results.md` — the headline numbers and what the system achieves.
+- `docs/results.md` — the headline numbers.
+
+## License
+
+MIT — see `LICENSE`.
