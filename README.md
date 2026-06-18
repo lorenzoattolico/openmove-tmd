@@ -22,3 +22,10 @@ Master's thesis (Lorenzo Attolico, University of Trento) and the deployment code
 Data are not included (user mobility, kept private); the pipeline runs on a local snapshot.
 To deploy on your own data see `production/DEPLOY.md`; to reproduce the thesis results see
 `research/README.md`.
+
+## Documentation
+
+- `docs/architecture.md` — the pipeline, the packages, the key design choices.
+- `docs/results.md` — the headline numbers and what the system achieves.
+- `production/DEPLOY.md` (and `DEPLOY.it.md`) — running it in production.
+- `research/README.md` — reproducing the thesis figures and numbers.
