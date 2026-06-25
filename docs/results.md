@@ -35,4 +35,4 @@ score — evidence that the spatial features are universal physics, not memorize
 ## Use case
 
 The deliverable is the aggregate, not the per-window label: the modal split, de-biased by a standard
-prevalence correction (quantification), maps to a CO2 estimate within a survey-grade margin.
+prevalence correction (quantification) from a small local calibration sample, maps to a CO2 estimate within the error margin that mobility surveys take as a reference.

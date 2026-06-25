@@ -8,7 +8,7 @@ There is no hand annotation. Each window is labeled by a cascade of physical rul
 
     Still -> Walk -> Train -> Bus -> Car -> ABSTAIN
 
-The thresholds are physical constants, not values fit to Trento: the human locomotion ceiling
+The thresholds are physically grounded, not values fit to Trento: the human locomotion ceiling
 (no pedestrian sustains a peak above ~5 m/s over two minutes), the MEMS noise floor of a still device,
 the map-matching confidence to rail and bus stops. Because they are physical, the same labeler runs on
 other cities and datasets without retuning — on a second country it agrees with the ground truth at
@@ -54,4 +54,4 @@ trained on that dataset's real labels — a small, honest label-free cost on a s
 The deliverable is the aggregate, not the per-window label. A classifier over-counts some modes, so the
 raw modal split carries a systematic bias; a standard prevalence correction (quantification,
 Saerens/Forman) de-biases it from a small labeled calibration sample, and the corrected split maps to a
-CO2 estimate within a survey-grade margin.
+CO2 estimate within the error margin that mobility surveys take as a reference.
